@@ -23,6 +23,6 @@
   "include": ["src/**/*", "src/**/*.json"],
   "references": [
     { "path": "../smoldot-test-utils" },
-    { "path": "../connect-extension-protocol" }
+    { "path": "../connect-extension-interface" }
   ]
 }

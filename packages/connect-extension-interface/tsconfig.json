@@ -5,7 +5,6 @@
     "baseUrl": ".",
     "rootDir": "./src",
     "esModuleInterop": true,
-    "outDir": "./dist",
     "target": "ES2018",
     "moduleResolution": "node",
     "resolveJsonModule": true,

@@ -3,7 +3,7 @@ module.exports = {
     // See the connect .eslintrc.cjs for an explanation of this config
     EXPERIMENTAL_useSourceOfProjectReferenceRedirect: true,
     project: [
-      "../../packages/connect-extension-protocol/tsconfig.json",
+      "../../packages/connect-extension-interface/tsconfig.json",
       "./tsconfig.json",
     ],
   },

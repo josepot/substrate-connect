@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "name": "@substrate/connect-extension-interface",
+  "type": "module",
+  "description": "Public Interface exposed by the content-script of the substrate-connect extension",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paritytech/substrate-connect.git"
+  },
+  "license": "GPL-3.0-only",
+  "sideEffects": false,
+  "main": "./src/index.js",
+  "typings": "./src/index.d.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "exit 0; #This package is only types",
+    "lint": "yarn eslint . --ext .js,.ts"
+  },
+  "files": [
+    "src"
+  ]
+}
