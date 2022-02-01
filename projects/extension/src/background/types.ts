@@ -22,3 +22,23 @@ export interface StateEvents {
 }
 
 export type StateEmitter = StrictEventEmitter<EventEmitter, StateEvents>
+
+interface ToBackgroundAddChain {
+  type: "add-chain"
+  payload: { chainSpec: string; potentialRelayChainIds: Array<string> }
+}
+
+interface ToBackgroundAddWellKnownChain {
+  type: "add-well-known-chain"
+  payload: string
+}
+
+interface ToBackgroundRpc {
+  type: "rpc"
+  payload: string
+}
+
+export type ToBackground =
+  | ToBackgroundAddChain
+  | ToBackgroundAddWellKnownChain
+  | ToBackgroundRpc
