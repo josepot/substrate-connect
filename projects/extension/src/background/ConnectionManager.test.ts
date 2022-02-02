@@ -7,15 +7,8 @@
 
 import { jest } from "@jest/globals"
 import { ConnectionManager } from "./ConnectionManager"
-import { ExposedChainConnection } from "./types"
-import {
-  MockedChain,
-  MockPort,
-  MockSmoldotClient,
-  TEST_URL,
-  HeaderlessToExtension,
-} from "../mocks"
-import { ToExtension } from "@substrate/connect-extension-protocol"
+import { ExposedChainConnection, ToBackground } from "./types"
+import { MockedChain, MockPort, MockSmoldotClient, TEST_URL } from "../mocks"
 
 const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
@@ -29,7 +22,7 @@ const createHelper = () => {
     connectPort: (
       chainId: string,
       tabId: number,
-      addChainMsg?: HeaderlessToExtension<ToExtension>,
+      addChainMsg?: ToBackground,
       url = TEST_URL,
     ) => {
       const port = new MockPort(chainId, tabId)
@@ -140,33 +133,6 @@ describe("ConnectionManager", () => {
     ])
   })
 
-  it("sending an 'rpc' message before the chain is added triggers an error", async () => {
-    const { connectPort, client } = helper
-
-    const { port } = connectPort("chainId", 1)
-
-    expect(client.chains.size).toBe(0)
-
-    port._sendExtensionMessage({
-      type: "add-well-known-chain",
-      payload: "polkadot",
-    })
-
-    port._sendExtensionMessage({
-      type: "rpc",
-      payload: JSON.stringify({ jsonrpc: "2.0", id: "1" }),
-    })
-
-    await wait(0)
-
-    expect(port.postedMessages).toEqual([
-      {
-        type: "error",
-        payload: "RPC request received befor the chain was successfully added",
-      },
-    ])
-  })
-
   it("passes the messages from the chain to the port", async () => {
     const { connectPort } = helper
 
@@ -190,7 +156,7 @@ describe("ConnectionManager", () => {
     ])
     expect(port.postedMessages).toEqual([
       {
-        type: "chain-ready",
+        type: "chain-added-ok",
       },
     ])
 
@@ -206,7 +172,7 @@ describe("ConnectionManager", () => {
 
     expect(port.postedMessages).toEqual([
       {
-        type: "chain-ready",
+        type: "chain-added-ok",
       },
       {
         type: "rpc",
@@ -215,23 +181,6 @@ describe("ConnectionManager", () => {
           id: "1",
           result: "{}",
         }),
-      },
-    ])
-  })
-
-  it("correctly errors when passed a malformed message", () => {
-    const { connectPort } = helper
-    const { port } = connectPort("chainId", 1)
-
-    port._sendExtensionMessage({
-      type: "foo" as "rpc",
-      payload: "",
-    })
-
-    expect(port.postedMessages).toEqual([
-      {
-        type: "error",
-        payload: `Unrecognised message type 'foo' or payload '' received from content script`,
       },
     ])
   })
@@ -247,8 +196,9 @@ describe("ConnectionManager", () => {
 
     expect(port.postedMessages).toEqual([
       {
-        type: "error",
-        payload: "Relay chain spec was not found",
+        type: "chain-added-ko",
+        payload:
+          "An error happened while adding the chain Error: Relay chain spec was not found",
       },
     ])
   })
@@ -457,7 +407,7 @@ describe("ConnectionManager", () => {
 
     expect(tab1Port.postedMessages).toEqual([
       {
-        type: "chain-ready",
+        type: "chain-added-ok",
       },
       {
         type: "rpc",
@@ -470,7 +420,7 @@ describe("ConnectionManager", () => {
     ])
     expect(tab2Port.postedMessages).toEqual([
       {
-        type: "chain-ready",
+        type: "chain-added-ok",
       },
       {
         type: "rpc",
@@ -504,7 +454,7 @@ describe("ConnectionManager", () => {
     expect(client.chains.size).toBe(0)
   })
 
-  it("disconnects and cleans up upon receiving a `remove-chain` message", async () => {
+  it("cleans up upon port's disconnections", async () => {
     const { connectPort, client } = helper
 
     const { port } = connectPort("chainId", 1, {
@@ -516,13 +466,11 @@ describe("ConnectionManager", () => {
 
     expect(client.chains.size).toBe(1)
 
-    port._sendExtensionMessage({
-      type: "remove-chain",
-    })
+    port.disconnect()
 
     expect(port.postedMessages).toEqual([
       {
-        type: "chain-ready",
+        type: "chain-added-ok",
       },
     ])
     expect(client.chains.size).toBe(0)

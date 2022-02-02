@@ -4,27 +4,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-empty-function */
 
-import {
-  ToApplication,
-  ToExtension,
-} from "@substrate/connect-extension-protocol"
 import { AddChainOptions, Chain, Client } from "@substrate/smoldot-light"
+import { ToBackground } from "./background/types.js"
+import { ToContent } from "./content/types.js"
 
 const noop: any = Function.prototype
 
 export const TEST_URL = "https://test.com"
-
-export type HeaderlessToExtension<T extends ToExtension> = T extends {
-  origin: "extension-provider"
-} & infer V
-  ? Omit<V, "chainId">
-  : unknown
-
-export type HeaderlessToApplication<T extends ToApplication> = T extends {
-  origin: "content-script"
-} & infer V
-  ? Omit<V, "chainId">
-  : unknown
 
 export class MockPort implements chrome.runtime.Port {
   sender: any
@@ -54,15 +40,11 @@ export class MockPort implements chrome.runtime.Port {
     this.sender.tab.id = id
   }
 
-  _sendExtensionMessage(message: HeaderlessToExtension<ToExtension>): void {
-    this.#callbacks.onMessageCb({
-      ...message,
-      chainId: this.name,
-      origin: "extension-provider",
-    })
+  _sendExtensionMessage(message: ToBackground): void {
+    this.#callbacks.onMessageCb(message)
   }
 
-  _sendAppMessage(msg: HeaderlessToApplication<ToApplication>): void {
+  _sendAppMessage(msg: ToContent): void {
     this.#callbacks.onMessageCb(msg)
   }
 

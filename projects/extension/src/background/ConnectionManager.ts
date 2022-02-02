@@ -10,11 +10,11 @@ import {
   Chain,
 } from "@substrate/smoldot-light"
 import { JsonRpcCallback, SmoldotHealth } from "@substrate/smoldot-light"
-import { ExposedChainConnection, ChainConnection } from "./types"
+import { ExposedChainConnection, ChainConnection, ToBackground } from "./types"
 import EventEmitter from "eventemitter3"
 import { StateEmitter } from "./types"
 import { logger } from "@polkadot/util"
-import { ToExtension } from "@substrate/connect-extension-protocol"
+import { ToContent } from "../content/types"
 import westend from "../../public/assets/westend.json"
 import kusama from "../../public/assets/kusama.json"
 import polkadot from "../../public/assets/polkadot.json"
@@ -83,7 +83,7 @@ export class ConnectionManager extends (EventEmitter as {
    */
   disconnectTab(tabId: number): void {
     this.#chainConnections.forEach((a) => {
-      if (a.tabId === tabId) a.port.disconnect()
+      if (a.tabId === tabId) a.disconnect()
     })
   }
 
@@ -94,9 +94,7 @@ export class ConnectionManager extends (EventEmitter as {
    * by a content script.
    */
   addChainConnection(port: chrome.runtime.Port): void {
-    if (!this.#client) {
-      throw new Error("Smoldot client does not exist.")
-    }
+    if (!this.#client) throw new Error("Smoldot client does not exist.")
 
     // if create an `AppMediator` throws, it has sent an error down the
     // port and disconnected it, so we should just ignore
@@ -113,11 +111,14 @@ export class ConnectionManager extends (EventEmitter as {
         chainId,
         tabId,
         url,
-        port,
         healthChecker,
+        postMessage: (msg: ToContent) => {
+          port.postMessage(msg)
+        },
+        disconnect: port.disconnect.bind(port),
       }
 
-      const onMessageHandler = (msg: ToExtension) => {
+      const onMessageHandler = (msg: ToBackground) => {
         this.#handleMessage(msg, connection)
       }
       port.onMessage.addListener(onMessageHandler)
@@ -138,7 +139,7 @@ export class ConnectionManager extends (EventEmitter as {
     } catch (e) {
       const msg = `Error while connecting to the port ${e}`
       l.error(msg)
-      this.#handleError(port, e instanceof Error ? e : new Error(msg))
+      port.postMessage({ type: "crash-error", payload: msg })
     }
   }
 
@@ -146,7 +147,7 @@ export class ConnectionManager extends (EventEmitter as {
   shutdown(): Promise<void> {
     if (!this.#client) return Promise.resolve()
 
-    this.#chainConnections.forEach((a) => a.port.disconnect())
+    this.#chainConnections.forEach((a) => a.disconnect())
     const client = this.#client
     this.#client = null
     return client.terminate()
@@ -186,11 +187,6 @@ export class ConnectionManager extends (EventEmitter as {
     })
   }
 
-  #handleError(port: chrome.runtime.Port, e: Error) {
-    port.postMessage({ type: "error", payload: e.message })
-    port.disconnect()
-  }
-
   /** Handles the incoming message that contains Spec. */
   async #handleSpecMessage(
     chainConnection: ChainConnection,
@@ -204,7 +200,7 @@ export class ConnectionManager extends (EventEmitter as {
     const rpcCallback = (rpc: string) => {
       const rpcResp = chainConnection.healthChecker.responsePassThrough(rpc)
       if (rpcResp)
-        chainConnection.port.postMessage({ type: "rpc", payload: rpcResp })
+        chainConnection.postMessage({ type: "rpc", payload: rpcResp })
     }
 
     chainConnection.chainName =
@@ -221,7 +217,7 @@ export class ConnectionManager extends (EventEmitter as {
 
     chrome.storage.local.get("notifications", (s) => {
       s.notifications &&
-        chrome.notifications.create(chainConnection.port.name, {
+        chrome.notifications.create(chainConnection.chainId, {
           title: "Substrate Connect",
           message: `Chain ${chainConnection.chainId} connected to ${chainConnection.chainName}.`,
           iconUrl: "./icons/icon-32.png",
@@ -242,11 +238,18 @@ export class ConnectionManager extends (EventEmitter as {
     }
 
     chainConnection.chain = chain
-    chainConnection.port.postMessage({ type: "chain-ready" })
+    chainConnection.postMessage({ type: "chain-added-ok" })
 
     // Initialize healthChecker
     chainConnection.healthChecker.setSendJsonRpc((rpc: string) => {
-      chain.sendJsonRpc(rpc)
+      try {
+        chain.sendJsonRpc(rpc)
+      } catch (e) {
+        chainConnection.postMessage({
+          type: "crash-error",
+          payload: (e as Error).message,
+        })
+      }
     })
     chainConnection.healthChecker.start((health: SmoldotHealth) => {
       const hasChanged =
@@ -259,9 +262,7 @@ export class ConnectionManager extends (EventEmitter as {
     })
   }
 
-  #handleMessage(msg: ToExtension, chainConnection: ChainConnection): void {
-    if (msg.type === "remove-chain") return chainConnection.port.disconnect()
-
+  #handleMessage(msg: ToBackground, chainConnection: ChainConnection): void {
     if (msg.type === "rpc" && msg.payload) {
       if (chainConnection.chain)
         return chainConnection.healthChecker.sendJsonRpc(msg.payload)
@@ -269,7 +270,6 @@ export class ConnectionManager extends (EventEmitter as {
       const errorMsg =
         "RPC request received befor the chain was successfully added"
       l.error(errorMsg)
-      this.#handleError(chainConnection.port, new Error(errorMsg))
       return
     }
 
@@ -279,7 +279,7 @@ export class ConnectionManager extends (EventEmitter as {
     ) {
       const errorMsg = `Unrecognised message type '${msg.type}' or payload '${msg.payload}' received from content script`
       l.error(errorMsg)
-      return this.#handleError(chainConnection.port, new Error(errorMsg))
+      return
     }
 
     const [chainSpec, potentialRelayChainIds]: [string, string[]] =
@@ -294,10 +294,7 @@ export class ConnectionManager extends (EventEmitter as {
     ).catch((e) => {
       const errorMsg = `An error happened while adding the chain ${e}`
       l.error(errorMsg)
-      this.#handleError(
-        chainConnection.port,
-        e instanceof Error ? e : new Error(errorMsg),
-      )
+      chainConnection.postMessage({ type: "chain-added-ko", payload: errorMsg })
     })
   }
 }
