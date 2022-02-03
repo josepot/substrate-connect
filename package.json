@@ -13,7 +13,6 @@
   "license": "GPL-3.0-only",
   "private": true,
   "workspaces": [
-    "packages/smoldot-test-utils",
     "packages/connect-extension-interface",
     "packages/connect",
     "projects/extension",

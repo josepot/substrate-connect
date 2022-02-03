@@ -21,8 +21,5 @@
     ".parcel*"
   ],
   "include": ["src/**/*", "src/**/*.json"],
-  "references": [
-    { "path": "../smoldot-test-utils" },
-    { "path": "../connect-extension-interface" }
-  ]
+  "references": [{ "path": "../connect-extension-interface" }]
 }
