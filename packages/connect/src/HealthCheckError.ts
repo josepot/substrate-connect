@@ -10,8 +10,7 @@ export class HealthCheckError extends Error {
     message = "Got error response asking for system health",
   ) {
     super(message)
+    this.name = "HealthCheckError"
     this.#cause = response
-    // 'Error' breaks the prototype chain - restore it
-    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
