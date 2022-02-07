@@ -14,12 +14,12 @@ import {
   CrashError,
   JsonRpcDisabledError,
 } from "./errors.js"
-import { getSpec } from "./specs/index.js"
+import { getSpec, SupportedChains } from "../specs/index.js"
 import type {
   AddChain,
   AddWellKnownChain,
   Chain,
-  SmoldotConnect,
+  SubstrateConnector,
 } from "./types.js"
 
 let SdAlreadyDestroyedError: typeof IAlreadyDestroyedError
@@ -52,7 +52,7 @@ const transformErrors = (thunk: () => void) => {
   }
 }
 
-export const getPublicApi = (options: ClientOptions): SmoldotConnect => {
+export const getPublicApi = (options: ClientOptions): SubstrateConnector => {
   let clientPromise: Promise<Client> | null = null
   const getClient = (options: ClientOptions): Promise<Client> => {
     if (clientPromise) return clientPromise
@@ -102,7 +102,7 @@ export const getPublicApi = (options: ClientOptions): SmoldotConnect => {
   }
 
   const addWellKnownChain: AddWellKnownChain = async (
-    supposedChain: string,
+    supposedChain: SupportedChains,
     jsonRpcCallback?: (msg: string) => void,
   ): Promise<Chain> => {
     // the following line ensures that the http request for the dynamic import

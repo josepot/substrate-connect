@@ -6,6 +6,7 @@ import {
   CrashError,
   JsonRpcDisabledError,
 } from "./errors"
+import { SupportedChains } from "../specs"
 
 class SdAlreadyDestroyedError extends Error {
   constructor() {
@@ -81,7 +82,7 @@ const mockSmoldotLightFactory = () => {
 }
 
 jest.unstable_mockModule("@substrate/smoldot-light", mockSmoldotLightFactory)
-jest.unstable_mockModule("./specs/generated/polkadot.js", () => ({
+jest.unstable_mockModule("../specs/generated/polkadot.js", () => ({
   default: "polkadotFakeChainSpec",
 }))
 
@@ -152,7 +153,7 @@ describe("SmoldotConnect::smoldot-light", () => {
       let mockedChain = mockedSmoldotLight.getLatestClient()._getChains()[0]
       expect(mockedChain._addChainOptions.chainSpec).toEqual(chainSpec)
 
-      await addWellKnownChain("polkadot")
+      await addWellKnownChain(SupportedChains.polkadot)
 
       mockedChain = mockedSmoldotLight.getLatestClient()._getChains()[1]
       expect(mockedChain._addChainOptions.chainSpec).toEqual(
