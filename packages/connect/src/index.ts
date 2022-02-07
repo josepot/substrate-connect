@@ -1,2 +1,2 @@
 export { ScProvider } from "./ScProvider.js"
-export { SupportedChains } from "./specs/index.js"
+export { SupportedChains } from "./SupportedChains.js"

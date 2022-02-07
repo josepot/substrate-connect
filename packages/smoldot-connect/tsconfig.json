@@ -20,5 +20,5 @@
     "../../node_modules*",
     ".parcel*"
   ],
-  "references": [{ "path": "../connect-extension-protocol" }]
+  "references": [{ "path": "../smoldot-connect" }]
 }

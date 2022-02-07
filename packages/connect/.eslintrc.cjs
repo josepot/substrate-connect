@@ -18,6 +18,6 @@
 module.exports = {
   parserOptions: {
     EXPERIMENTAL_useSourceOfProjectReferenceRedirect: true,
-    project: ["../connect-extension-protocol/tsconfig.json", "./tsconfig.json"],
+    project: ["../smoldot-connect/tsconfig.json", "./tsconfig.json"],
   },
 }
