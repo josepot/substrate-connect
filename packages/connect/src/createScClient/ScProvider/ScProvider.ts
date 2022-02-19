@@ -134,7 +134,7 @@ export class ScProvider implements ProviderInterface {
     const handler = this.#handlers[response.id]
 
     if (!handler) {
-      l.debug(() => `Unable to find handler for id=${response.id}`)
+      l.debug(() => `Unable to fiend handler for id=${response.id}`)
 
       return
     }
