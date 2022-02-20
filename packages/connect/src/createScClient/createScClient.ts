@@ -37,6 +37,9 @@ class Provider implements ProviderInterface {
   }
 
   public get hasSubscriptions(): boolean {
+    // you would expect this to be `this.#subscriptions.size > 0`, right?
+    // well, nope... This must always be `true` b/c otherwise Polkadot thinks
+    // that this provider doesn't support subscriptions.
     return true
   }
 
@@ -49,6 +52,10 @@ class Provider implements ProviderInterface {
   }
 
   async connect(): Promise<void> {
+    // it could happen that after emitting `disconnected` because the healthChecker
+    // has told us that smoldot is syncing, polkadot tries to reconnect after
+    // a certain amount of time... If that happens, then we want to make sure
+    // that we don't create a new chain.
     if (this.#chain) {
       await this.#chain
       return
@@ -66,7 +73,8 @@ class Provider implements ProviderInterface {
         typeof response.id === "string" &&
         (response.id as unknown as string).startsWith("extern:")
       ) {
-        // removing the `extern:` prefix that the healthChecker adds
+        // the healthChecker alters the original id. So, we must restore it
+        // because otherwise the RpcCoder can't decode the resonse.
         response.id = Number((response.id as unknown as string).slice(7))
       }
 
@@ -78,12 +86,12 @@ class Provider implements ProviderInterface {
           e instanceof Error ? e : new Error(`Error decoding response. ${e}`)
       }
 
-      // It's not a subscription message, but rather a response
+      // It's not a subscription message, but rather a standar RPC response
       if (response.method === undefined) {
         return this.#requests.get(response.id)?.(decodedResponse)
       }
 
-      // It has a `method`, then it's a subscription message
+      // It has a `method` property, that means that it's a subscription message
       const subscriptionId = `${response.method}::${response.params.subscription}`
 
       const callback = this.#subscriptions.get(subscriptionId)
@@ -119,11 +127,14 @@ class Provider implements ProviderInterface {
         remove: () => {
           hc.stop()
 
-          // If there are any
+          // If there are any callbacks left, we have to reject/error them.
+          // Otherwise, that would cause a memory leak.
           const disconnectionError = new Error("Disconnected")
           this.#requests.forEach((cb) => cb(disconnectionError))
           this.#subscriptions.forEach((cb) => cb(disconnectionError))
+          this.#subscriptions.clear()
           this.#orphanMessages.clear()
+
           chain.remove()
         },
       }
@@ -132,8 +143,8 @@ class Provider implements ProviderInterface {
     try {
       await this.#chain
     } catch (e) {
-      this.#eventemitter.emit("error", e)
       this.#chain = null
+      this.#eventemitter.emit("error", e)
       throw e
     }
   }
@@ -144,14 +155,19 @@ class Provider implements ProviderInterface {
     const chain = await this.#chain
     this.#chain = null
     this.#isChainReady = false
+    try {
+      chain.remove()
+    } catch (_) {}
     this.#eventemitter.emit("disconnected")
-    chain.remove()
   }
 
   public on(
     type: ProviderInterfaceEmitted,
     sub: ProviderInterfaceEmitCb,
   ): () => void {
+    // It's possible. Although, quite unlikely, that by the time that polkadot
+    // subscribes to the `connected` event, the Provider is already connected.
+    // In that case, we must emit to let the consumer know that we are connected.
     if (type === "connected" && this.isConnected) {
       sub()
     }
@@ -177,11 +193,15 @@ class Provider implements ProviderInterface {
         chain.sendJsonRpc(json)
       } catch (e) {
         this.#chain = null
-        chain.remove()
+        try {
+          chain.remove()
+        } catch (_) {}
         this.#eventemitter.emit("error", e)
       }
     })
 
+    // let's ensure that once the Promise is resolved/rejected, then we remove
+    // remove its entry from the internal #requests
     result.finally(() => {
       this.#requests.delete(id)
     })
