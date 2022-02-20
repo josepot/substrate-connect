@@ -37,7 +37,7 @@ class Provider implements ProviderInterface {
   }
 
   public get hasSubscriptions(): boolean {
-    return this.#subscriptions.size > 0
+    return true
   }
 
   public get isConnected(): boolean {
@@ -54,10 +54,22 @@ class Provider implements ProviderInterface {
       return
     }
 
+    const hc = healthChecker()
     const onResponse = (res: string): void => {
-      if (!hc.responsePassThrough(res)) return
+      if (!hc.responsePassThrough(res)) {
+        return
+      }
 
       const response = JSON.parse(res) as JsonRpcResponse
+
+      if (
+        typeof response.id === "string" &&
+        (response.id as unknown as string).startsWith("extern:")
+      ) {
+        // removing the `extern:` prefix that the healthChecker adds
+        response.id = Number((response.id as unknown as string).slice(7))
+      }
+
       let decodedResponse: string | Error
       try {
         decodedResponse = this.#coder.decodeResponse(response) as string
@@ -85,22 +97,25 @@ class Provider implements ProviderInterface {
       this.#orphanMessages.get(subscriptionId)!.push(decodedResponse)
     }
 
-    const hc = healthChecker()
     this.#isChainReady = false
     this.#chain = this.#getChain(onResponse).then((chain) => {
-      hc.setSendJsonRpc(chain.sendJsonRpc)
+      hc.setSendJsonRpc((msg) => {
+        chain.sendJsonRpc(msg)
+      })
+
       hc.start((health) => {
         const isReady =
           !health.isSyncing && (health.peers > 0 || !health.shouldHavePeers)
 
         if (this.#isChainReady !== isReady) {
-          this.#eventemitter.emit(isReady ? "connected" : "disconnected")
           this.#isChainReady = isReady
+          this.#eventemitter.emit(isReady ? "connected" : "disconnected")
         }
       })
 
       return {
         ...chain,
+        sendJsonRpc: hc.sendJsonRpc.bind(hc),
         remove: () => {
           hc.stop()
 
